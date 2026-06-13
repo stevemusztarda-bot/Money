@@ -3,14 +3,14 @@ import { useState } from 'react';
 
 const presets = [
   { label: 'Darmowe', max: 0, icon: '🆓', desc: 'Tylko F2P' },
-  { label: 'Do 20 zł', max: 20, icon: '💰', desc: 'Indie i sale' },
-  { label: 'Do 100 zł', max: 100, icon: '💳', desc: 'Większość gier' },
+  { label: 'Do 50 zł', max: 50, icon: '💰', desc: 'Indie i promki' },
+  { label: 'Do 120 zł', max: 120, icon: '💳', desc: 'Większość gier' },
   { label: 'Do 250 zł', max: 250, icon: '💎', desc: 'Premiery AAA' },
   { label: 'Bez limitu', max: 9999, icon: '🚀', desc: 'Wszystko' },
 ];
 
 const presetMaxes = presets.map((p) => p.max);
-const CUSTOM_MAX = 300;
+const CUSTOM_MAX = 350;
 
 export default function BudgetStep({ selected, onSelect }) {
   const isCustom = selected !== null && !presetMaxes.includes(selected);
