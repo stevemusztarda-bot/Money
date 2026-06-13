@@ -19,6 +19,13 @@ body {
   min-height: 100vh;
 }
 
+/* Widoczny focus dla nawigacji klawiaturą (dostępność) */
+:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -28,4 +35,43 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #6c63ff55;
   border-radius: 3px;
+}
+
+/* Suwak budżetu */
+input[type='range'] {
+  height: 6px;
+  border-radius: 999px;
+  background: #ffffff14;
+  appearance: none;
+  -webkit-appearance: none;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6c63ff, #a855f7);
+  box-shadow: 0 0 12px #6c63ff88;
+  cursor: pointer;
+}
+input[type='range']::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6c63ff, #a855f7);
+  box-shadow: 0 0 12px #6c63ff88;
+  cursor: pointer;
+}
+
+/* Szanuj preferencję ograniczenia ruchu */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
