@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PLATFORM_META, PLAYER_META, genres as ALL_GENRES } from '../data/games';
 import { formatPrice } from '../utils/format';
-import { buildStores } from '../utils/stores';
+import { buildStores, imageUrl } from '../utils/stores';
 
 const reviewColor = (label = '') => {
   const l = label.toLowerCase();
@@ -32,6 +32,7 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
   const isFree = game.price === 0;
   const onSale = game.discount > 0 && game.priceOld;
   const stores = buildStores(game);
+  const imgSrc = imageUrl(game);
 
   // Portal do document.body — modal nie może być wewnątrz karty z backdrop-filter,
   // bo wtedy position:fixed liczy się względem karty, a nie ekranu.
@@ -76,8 +77,8 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
         >
           {/* Header image */}
           <div style={{ position: 'relative', height: 224, overflow: 'hidden' }}>
-            {!imgFailed && game.image ? (
-              <img src={game.image} alt={game.title} onError={() => setImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {!imgFailed && imgSrc ? (
+              <img src={imgSrc} alt={game.title} onError={() => setImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, background: '#111' }}>🎮</div>
             )}
@@ -92,7 +93,7 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
             </button>
 
             <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', gap: 8 }}>
-              <span style={{ padding: '5px 11px', borderRadius: 999, fontSize: 14, fontWeight: 700, background: '#00000099', color: '#fbbf24' }}>★ {game.rating}</span>
+              {game.rating != null && <span style={{ padding: '5px 11px', borderRadius: 999, fontSize: 14, fontWeight: 700, background: '#00000099', color: '#fbbf24' }}>★ {game.rating}</span>}
               {isFree && <span style={{ padding: '5px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700, background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>DARMOWA</span>}
               {onSale && <span style={{ padding: '5px 11px', borderRadius: 999, fontSize: 12, fontWeight: 800, background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>-{game.discount}%</span>}
             </div>
@@ -122,7 +123,7 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
               </div>
             )}
 
-            <p style={{ color: '#bcbcd0', lineHeight: 1.6, marginTop: 14 }}>{game.description}</p>
+            {game.description && <p style={{ color: '#bcbcd0', lineHeight: 1.6, marginTop: 14 }}>{game.description}</p>}
 
             {/* Meta */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 18, fontSize: 14 }}>

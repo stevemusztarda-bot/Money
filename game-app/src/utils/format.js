@@ -12,4 +12,5 @@ export const gamesWord = (n) => plural(n, 'gra', 'gry', 'gier');
 export const genresWord = (n) => plural(n, 'gatunek', 'gatunki', 'gatunków');
 
 // Formatowanie ceny gry
-export const formatPrice = (price) => (price === 0 ? 'Darmowa' : `~${price} zł`);
+export const formatPrice = (price) =>
+  price == null ? 'Sprawdź w sklepie' : price === 0 ? 'Darmowa' : `~${price} zł`;

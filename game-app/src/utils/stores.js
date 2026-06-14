@@ -1,3 +1,11 @@
+// Okładka gry: dla gier Steam budowana z appid (nie trzymamy URL w danych),
+// dla pozostałych (mobile/Nintendo) używamy zapisanego adresu.
+export function imageUrl(game) {
+  if (game.image) return game.image;
+  if (game.steam) return `https://cdn.akamai.steamstatic.com/steam/apps/${game.steam}/header.jpg`;
+  return '';
+}
+
 // Buduje listę oficjalnych sklepów dla gry z jej pól (steam/cs/appStoreUrl).
 // Trzymane w aplikacji, a nie w danych — dzięki temu plik z grami jest mniejszy.
 export function buildStores(game) {

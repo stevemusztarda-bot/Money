@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PLATFORM_META, PLAYER_META } from '../data/games';
 import { formatPrice } from '../utils/format';
-import { buildStores } from '../utils/stores';
+import { buildStores, imageUrl } from '../utils/stores';
 
 const starColor = (r) => (r >= 9.0 ? '#fbbf24' : r >= 8.0 ? '#f59e0b' : r >= 6.5 ? '#d97706' : '#9ca3af');
 
@@ -22,6 +22,7 @@ function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
   const [imgFailed, setImgFailed] = useState(false);
   const review = game.review;
   const stores = buildStores(game);
+  const imgSrc = imageUrl(game);
 
   return (
     <motion.div
@@ -39,9 +40,9 @@ function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
     >
       {/* Game image */}
       <div className="relative h-40 overflow-hidden shrink-0">
-        {!imgFailed && game.image ? (
+        {!imgFailed && imgSrc ? (
           <img
-            src={game.image}
+            src={imgSrc}
             alt={`Okładka gry ${game.title}`}
             loading="lazy"
             decoding="async"
@@ -56,12 +57,14 @@ function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom,transparent 40%,#0d0d1a)' }} />
 
         {/* Rating badge */}
-        <div
-          className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-bold"
-          style={{ background: '#00000088', color: starColor(game.rating) }}
-        >
-          ★ {game.rating}
-        </div>
+        {game.rating != null && (
+          <div
+            className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-bold"
+            style={{ background: '#00000088', color: starColor(game.rating) }}
+          >
+            ★ {game.rating}
+          </div>
+        )}
 
         {(isFree || onSale) && (
           <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>
@@ -108,7 +111,9 @@ function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
           </div>
         )}
 
-        <p className="text-gray-400 text-sm mb-4 leading-relaxed line-clamp-3">{game.description}</p>
+        {game.description && (
+          <p className="text-gray-400 text-sm mb-4 leading-relaxed line-clamp-3">{game.description}</p>
+        )}
 
         {/* Tags */}
         <div className="flex flex-wrap gap-1.5 mb-4">

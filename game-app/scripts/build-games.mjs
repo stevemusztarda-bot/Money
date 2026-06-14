@@ -139,9 +139,9 @@ function deriveReview(data, spy, entry) {
     if (count > 0) pct = Math.round((spy.pos / count) * 100);
   }
   const mc = data?.metacritic?.score ?? null;
-  if (pct != null) return { score: pct, label: steamLabel(pct, count) };
-  if (mc != null) return { score: mc, label: mcBucket(mc) };
-  return { score: entry?.review?.score ?? null, label: entry?.review?.label || '' };
+  if (pct != null) return { score: pct, label: steamLabel(pct, count), count };
+  if (mc != null) return { score: mc, label: mcBucket(mc), count: 0 };
+  return { score: entry?.review?.score ?? null, label: entry?.review?.label || '', count: 0 };
 }
 
 const parseYear = (rd) => {
@@ -251,8 +251,8 @@ async function enrich(entry, spyEntry) {
       const adult = (data.content_descriptors?.ids || []).some((id) => [1, 3, 4].includes(id));
       if (entry.bulk && (data.type !== 'game' || adult)) return null;
       g.title = entry.bulk ? data.name || entry.title : entry.title || data.name;
-      // Stabilny, kanoniczny URL okładki (z ID) — pewniejszy niż header_image z hashem/?t=
-      g.image = `https://cdn.akamai.steamstatic.com/steam/apps/${entry.steam}/header.jpg`;
+      // Okładkę dla gier Steam budujemy w aplikacji z appid (mniejszy plik danych).
+      g.image = '';
       g.description = clean(data.short_description) || entry.description || '';
       const po = data.price_overview;
       if (data.is_free) g.price = 0;
@@ -417,10 +417,109 @@ const SEED = [
   { title: 'Pokémon GO', src: 'itunes', q: 'Pokemon GO', p: ['mobile'], gr: ['adventure', 'casual'], pl: ['multi'], y: 2016, price: 0, rating: 7.5, review: { score: 75, label: 'Pozytywne' }, description: 'Łap Pokémony w prawdziwym świecie dzięki rozszerzonej rzeczywistości.' },
 ];
 
+// ——— Listy per gatunek/tag ze SteamSpy → kandydaci + przypisanie gatunków ———
+const GENRE_QUERIES = [
+  ['Action', 'action'], ['RPG', 'rpg'], ['Adventure', 'adventure'], ['Strategy', 'strategy'],
+  ['Indie', 'indie'], ['Simulation', 'simulation'], ['Casual', 'casual'], ['Racing', 'racing'],
+  ['Sports', 'sports'], ['Massively Multiplayer', 'mmo'],
+];
+const TAG_QUERIES = [
+  ['FPS', 'fps'], ['Shooter', 'fps'], ['Roguelike', 'roguelike'], ['Horror', 'horror'],
+  ['Survival', 'survival'], ['Platformer', 'platformer'], ['Puzzle', 'puzzle'], ['Sandbox', 'sandbox'],
+  ['Fighting', 'fighting'], ['MOBA', 'moba'], ['Battle Royale', 'battle-royale'], ['Open World', 'adventure'],
+  ['Card Game', 'strategy'], ['Visual Novel', 'adventure'],
+];
+const PER_LIST = 80; // ile gier brać z każdej listy
+
+async function steamspyByGenreTag(spy, genreMap) {
+  const take = async (url, my) => {
+    const j = await fetchJson(url);
+    if (!j) return;
+    const arr = Object.values(j)
+      .filter((a) => Number(a.appid))
+      .sort((x, y) => (Number(y.positive) || 0) - (Number(x.positive) || 0))
+      .slice(0, PER_LIST);
+    for (const a of arr) {
+      const id = Number(a.appid);
+      if (!spy.has(id)) spy.set(id, { pos: Number(a.positive) || 0, neg: Number(a.negative) || 0, name: a.name || '' });
+      if (!genreMap.has(id)) genreMap.set(id, new Set());
+      genreMap.get(id).add(my);
+    }
+    await sleep(400);
+  };
+  for (const [g, my] of GENRE_QUERIES) await take(`https://steamspy.com/api.php?request=genre&genre=${encodeURIComponent(g)}`, my);
+  for (const [t, my] of TAG_QUERIES) await take(`https://steamspy.com/api.php?request=tag&tag=${encodeURIComponent(t)}`, my);
+}
+
+// Hurtowe ceny PLN (po ~100 appid na zapytanie)
+async function batchPrices(appids) {
+  const map = new Map();
+  for (let i = 0; i < appids.length; i += 100) {
+    const chunk = appids.slice(i, i + 100);
+    const j = await fetchJson(`https://store.steampowered.com/api/appdetails?appids=${chunk.join(',')}&filters=price_overview&cc=${CC}&l=${LANG}`);
+    if (j) {
+      for (const id of Object.keys(j)) {
+        const node = j[id];
+        if (!node?.success) { map.set(Number(id), { price: null }); continue; }
+        const po = node.data?.price_overview;
+        if (!po) map.set(Number(id), { price: 0 });
+        else map.set(Number(id), {
+          price: Math.round(po.final / 100),
+          priceOld: po.discount_percent > 0 ? Math.round(po.initial / 100) : null,
+          discount: po.discount_percent || 0,
+        });
+      }
+    }
+    await sleep(500);
+  }
+  return map;
+}
+
+// Gry mobilne z iTunes (RSS top darmowe + grossing) — 10× więcej na telefon
+async function itunesMobile() {
+  const feeds = [
+    'https://itunes.apple.com/pl/rss/topfreeapplications/limit=40/genre=6014/json',
+    'https://itunes.apple.com/pl/rss/topgrossingapplications/limit=25/genre=6014/json',
+    'https://itunes.apple.com/pl/rss/toppaidapplications/limit=25/genre=6014/json',
+  ];
+  const CATMAP = [
+    ['shooter', 'fps'], ['action', 'action'], ['rpg', 'rpg'], ['role', 'rpg'], ['strategy', 'strategy'],
+    ['puzzle', 'puzzle'], ['racing', 'racing'], ['sports', 'sports'], ['adventure', 'adventure'],
+    ['simulation', 'simulation'], ['card', 'strategy'], ['arcade', 'casual'], ['board', 'strategy'], ['word', 'puzzle'],
+  ];
+  const seen = new Set();
+  const out = [];
+  for (const url of feeds) {
+    const j = await fetchJson(url);
+    for (const e of j?.feed?.entry || []) {
+      const id = e.id?.attributes?.['im:id'];
+      const name = e['im:name']?.label;
+      if (!id || !name || seen.has(id)) continue;
+      seen.add(id);
+      const imgs = e['im:image'] || [];
+      const cat = (e.category?.attributes?.label || '').toLowerCase();
+      const gset = new Set();
+      for (const [k, v] of CATMAP) if (cat.includes(k)) gset.add(v);
+      if (gset.size === 0) gset.add('casual');
+      const cents = Number(e['im:price']?.attributes?.amount) || 0;
+      out.push({
+        steam: null, title: name, platform: ['mobile'], genre: [...gset].slice(0, 3), players: ['single'],
+        price: cents > 0 ? Math.round(cents) : 0, priceOld: null, discount: 0, rating: null, year: null,
+        comingSoon: false, image: imgs[imgs.length - 1]?.label || '', description: '', review: null,
+        cs: null, appStoreUrl: e.id?.label || '',
+      });
+    }
+    await sleep(400);
+  }
+  return out;
+}
+
 async function main() {
-  console.log('▸ Pobieram listy popularnych gier (SteamSpy)…');
-  const { map: spy, order: spyOrder } = await steamspyPool();
-  console.log(`  SteamSpy: ${spyOrder.length} kandydatów`);
+  console.log('▸ SteamSpy: listy popularne + per gatunek/tag…');
+  const { map: spy } = await steamspyPool();
+  const genreMap = new Map();
+  await steamspyByGenreTag(spy, genreMap);
+  console.log(`  Kandydatów łącznie: ${spy.size}`);
 
   const curatedSteam = new Map();
   const curatedNonSteam = [];
@@ -434,32 +533,65 @@ async function main() {
     else curatedNonSteam.push(base);
   }
 
-  const CAP = 280; // łączny limit gier ze Steam
-  const order = [...curatedSteam.keys()];
-  for (const id of spyOrder) {
-    if (order.length >= CAP) break;
-    if (!curatedSteam.has(id)) order.push(id);
-  }
-  console.log(`▸ Pobieram dane Steam dla ${order.length} gier (to potrwa kilka minut)…`);
+  const TOTAL = 900; // łączny limit gier ze Steam
+  const RICH = 220;  // ile (poza kuratorowanymi) z pełnymi opisami/datami
+  const rest = [...spy.keys()].filter((id) => !curatedSteam.has(id));
+  rest.sort((a, b) => (spy.get(b)?.pos || 0) - (spy.get(a)?.pos || 0));
+  const steamOrder = [...curatedSteam.keys(), ...rest].slice(0, TOTAL);
+  const richSet = new Set([...curatedSteam.keys(), ...rest.slice(0, RICH)]);
 
   const out = [];
+  const addGenres = (g, appid) => {
+    const extra = genreMap.get(appid);
+    if (extra) g.genre = [...new Set([...g.genre, ...extra])].slice(0, 5);
+  };
+
+  // 1) Bogaty zestaw — pełne dane (opis, data) z appdetails
+  console.log(`▸ Pełne dane dla ${richSet.size} najpopularniejszych…`);
   let n = 0;
-  for (const appid of order) {
+  for (const appid of steamOrder) {
+    if (!richSet.has(appid)) continue;
     const override = curatedSteam.get(appid);
     const entry = override ? { ...override, steam: appid } : { steam: appid, title: spy.get(appid)?.name || '', bulk: true };
     const g = await enrich(entry, spy.get(appid));
     n++;
-    if (g) out.push(g);
-    if (n % 20 === 0) console.log(`  …${n}/${order.length} (zebrano ${out.length})`);
-    await sleep(350);
+    if (g) { addGenres(g, appid); out.push(g); }
+    if (n % 25 === 0) console.log(`  …${n}/${richSet.size}`);
+    await sleep(330);
   }
+
+  // 2) Reszta (bulk) — hurtowe ceny + dane ze SteamSpy (bez opisu/daty)
+  const bulkAppids = steamOrder.filter((id) => !richSet.has(id) && spy.get(id)?.name);
+  console.log(`▸ Hurtowe ceny dla ${bulkAppids.length} gier…`);
+  const prices = await batchPrices(bulkAppids);
+  for (const appid of bulkAppids) {
+    const s = spy.get(appid);
+    const p = prices.get(appid) || {};
+    const rv = deriveReview(null, s, null);
+    const game = {
+      steam: appid, title: s.name, platform: ['pc'], genre: [...(genreMap.get(appid) || new Set(['indie']))].slice(0, 4),
+      players: ['single'], price: p.price ?? null, priceOld: p.priceOld ?? null, discount: p.discount ?? 0,
+      rating: rv.score != null ? Math.round((rv.score / 10) * 10) / 10 : null, year: null, comingSoon: false,
+      image: '', description: '', review: rv, cs: null, appStoreUrl: null,
+    };
+    game.tags = buildTags(game);
+    out.push(game);
+  }
+
+  // 3) Kuratorowane spoza Steam (Nintendo) + 4) mobile z iTunes
   for (const e of curatedNonSteam) {
     const g = await enrich(e, null);
     if (g) out.push(g);
   }
+  console.log('▸ Gry mobilne (iTunes)…');
+  for (const m of await itunesMobile()) {
+    m.tags = buildTags(m);
+    out.push(m);
+  }
+
   out.forEach((g, i) => (g.id = i + 1));
 
-  console.log('▸ Pobieram promocje i nadchodzące premiery…');
+  console.log('▸ Promocje i premiery…');
   const { upcoming, featuredDeals, featuredPremiere } = await fetchFeatured();
 
   const file = `// WYGENEROWANE przez scripts/build-games.mjs — prawdziwe dane ze Steam (ceny w PLN).
@@ -482,6 +614,7 @@ export const PLAYER_META = {
 
 export const SORT_OPTIONS = [
   { id: "rating", label: "Najwyżej oceniane" },
+  { id: "reviews", label: "Najwięcej opinii" },
   { id: "price-asc", label: "Cena: rosnąco" },
   { id: "price-desc", label: "Cena: malejąco" },
   { id: "year", label: "Najnowsze" },

@@ -7,10 +7,11 @@ import GameCard from './GameCard';
 import GameDetailModal from './GameDetailModal';
 
 const comparators = {
-  rating: (a, b) => b.rating - a.rating,
-  'price-asc': (a, b) => a.price - b.price || b.rating - a.rating,
-  'price-desc': (a, b) => b.price - a.price || b.rating - a.rating,
-  year: (a, b) => b.year - a.year || b.rating - a.rating,
+  rating: (a, b) => (b.rating || 0) - (a.rating || 0),
+  reviews: (a, b) => (b.review?.count || 0) - (a.review?.count || 0),
+  'price-asc': (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) || (b.rating || 0) - (a.rating || 0),
+  'price-desc': (a, b) => (b.price ?? -1) - (a.price ?? -1) || (b.rating || 0) - (a.rating || 0),
+  year: (a, b) => (b.year || 0) - (a.year || 0) || (b.rating || 0) - (a.rating || 0),
   name: (a, b) => a.title.localeCompare(b.title, 'pl'),
 };
 
@@ -21,6 +22,14 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
   const [onlyFree, setOnlyFree] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [limit, setLimit] = useState(60); // ile kart pokazać (płynność przy setkach gier)
+  // Reset porcji przy zmianie filtrów (wzorzec „dostosuj stan w trakcie renderu", bez useEffect)
+  const filterKey = `${platform}|${budget}|${genres.join(',')}|${onlyFree}|${onlyFavorites}|${query}|${sort}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setLimit(60);
+  }
 
   // Liczba gier pasujących do wyborów z kreatora (bez filtrów paska narzędzi) —
   // do pokazania, ile odsiewają dodatkowe filtry.
@@ -54,6 +63,8 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
     });
     return list.sort(comparators[sort] || comparators.rating);
   }, [platform, budget, genres, onlyFree, onlyFavorites, query, sort, favoriteSet]);
+
+  const visible = results.slice(0, limit);
 
   const platformLabel = PLATFORM_META[platform]?.label ?? platform;
   const budgetLabel =
@@ -172,18 +183,31 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
           )}
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-          {results.map((game, i) => (
-            <GameCard
-              key={game.id}
-              game={game}
-              index={i}
-              isFavorite={isFavorite(game.id)}
-              onToggleFavorite={toggleFavorite}
-              onOpen={setDetail}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+            {visible.map((game, i) => (
+              <GameCard
+                key={game.id}
+                game={game}
+                index={i}
+                isFavorite={isFavorite(game.id)}
+                onToggleFavorite={toggleFavorite}
+                onOpen={setDetail}
+              />
+            ))}
+          </div>
+          {results.length > limit && (
+            <div className="flex justify-center mb-10">
+              <button
+                onClick={() => setLimit((l) => l + 60)}
+                className="px-6 py-3 rounded-full text-sm font-semibold"
+                style={{ background: '#6c63ff22', color: '#a78bfa', border: '1px solid #6c63ff44', cursor: 'pointer' }}
+              >
+                Pokaż więcej ({results.length - limit})
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <div className="flex justify-center">
