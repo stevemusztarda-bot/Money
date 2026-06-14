@@ -4,6 +4,7 @@ import { games, SORT_OPTIONS, PLATFORM_META } from '../data/games';
 import { useFavorites } from '../hooks/useFavorites';
 import { gamesWord, genresWord } from '../utils/format';
 import GameCard from './GameCard';
+import GameDetailModal from './GameDetailModal';
 
 const comparators = {
   rating: (a, b) => b.rating - a.rating,
@@ -19,6 +20,7 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
   const [sort, setSort] = useState('rating');
   const [onlyFree, setOnlyFree] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   // Liczba gier pasujących do wyborów z kreatora (bez filtrów paska narzędzi) —
   // do pokazania, ile odsiewają dodatkowe filtry.
@@ -178,6 +180,7 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
               index={i}
               isFavorite={isFavorite(game.id)}
               onToggleFavorite={toggleFavorite}
+              onOpen={setDetail}
             />
           ))}
         </div>
@@ -198,6 +201,15 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
           Zacznij od nowa
         </motion.button>
       </div>
+
+      {detail && (
+        <GameDetailModal
+          game={detail}
+          isFavorite={isFavorite(detail.id)}
+          onToggleFavorite={toggleFavorite}
+          onClose={() => setDetail(null)}
+        />
+      )}
     </motion.div>
   );
 }

@@ -90,35 +90,168 @@ function buildStores(g) {
   return out;
 }
 
-async function enrich(entry) {
+// ——— Pula popularnych gier ze SteamSpy (appid -> oceny) ———
+async function steamspyPool() {
+  const map = new Map();
+  const order = [];
+  // Trendujące + najlepsze + 1000 najczęściej posiadanych (popularne, z ocenami)
+  const urls = [
+    'https://steamspy.com/api.php?request=top100in2weeks',
+    'https://steamspy.com/api.php?request=top100forever',
+    'https://steamspy.com/api.php?request=all&page=0',
+  ];
+  for (const url of urls) {
+    const j = await fetchJson(url);
+    if (!j) continue;
+    for (const k of Object.keys(j)) {
+      const a = j[k];
+      const id = Number(a.appid);
+      if (!id) continue;
+      if (!map.has(id)) {
+        map.set(id, { pos: Number(a.positive) || 0, neg: Number(a.negative) || 0, name: a.name || '' });
+        order.push(id);
+      }
+    }
+    await sleep(500);
+  }
+  return { map, order };
+}
+
+// Etykieta recenzji w stylu Steam (z % pozytywnych i liczby ocen)
+function steamLabel(pct, count) {
+  if (count < 10) return pct >= 70 ? 'Pozytywne' : pct >= 40 ? 'Mieszane' : 'Negatywne';
+  if (pct >= 95 && count >= 500) return 'Przytłaczająco pozytywne';
+  if (pct >= 80) return 'Bardzo pozytywne';
+  if (pct >= 70) return 'W większości pozytywne';
+  if (pct >= 40) return 'Mieszane';
+  if (pct >= 20) return 'W większości negatywne';
+  return 'Przytłaczająco negatywne';
+}
+const mcBucket = (mc) =>
+  mc >= 90 ? 'Uniwersalne uznanie' : mc >= 80 ? 'Bardzo pozytywne' : mc >= 70 ? 'W większości pozytywne' : mc >= 50 ? 'Mieszane' : 'Negatywne';
+
+function deriveReview(data, spy, entry) {
+  let pct = null;
+  let count = 0;
+  if (spy) {
+    count = (spy.pos || 0) + (spy.neg || 0);
+    if (count > 0) pct = Math.round((spy.pos / count) * 100);
+  }
+  const mc = data?.metacritic?.score ?? null;
+  if (pct != null) return { score: pct, label: steamLabel(pct, count) };
+  if (mc != null) return { score: mc, label: mcBucket(mc) };
+  return { score: entry?.review?.score ?? null, label: entry?.review?.label || '' };
+}
+
+const parseYear = (rd) => {
+  const m = (rd?.date || '').match(/\d{4}/);
+  return m ? Number(m[0]) : null;
+};
+
+// Mapowanie gatunków Steam (po polsku) + heurystyka z tekstu na naszą taksonomię
+const STEAM_GENRE_MAP = [
+  ['akcj', 'action'], ['przygod', 'adventure'], ['rpg', 'rpg'], ['strateg', 'strategy'],
+  ['symulac', 'simulation'], ['niezależ', 'indie'], ['casual', 'casual'], ['wyścig', 'racing'],
+  ['sport', 'sports'], ['masow', 'mmo'],
+];
+const KEYWORD_GENRE_MAP = [
+  ['roguelik', 'roguelike'], ['rogue-lik', 'roguelike'], ['battle royale', 'battle-royale'],
+  ['horror', 'horror'], ['surviv', 'survival'], ['przetrwani', 'survival'],
+  ['platformer', 'platformer'], ['platformów', 'platformer'], ['metroidvania', 'platformer'],
+  ['puzzle', 'puzzle'], ['logiczn', 'puzzle'], ['moba', 'moba'],
+  ['fighting', 'fighting'], ['bijatyk', 'fighting'], ['sandbox', 'sandbox'], ['piaskownic', 'sandbox'],
+  ['fps', 'fps'], ['first-person shooter', 'fps'], ['strzelank', 'fps'], ['shooter', 'fps'],
+];
+function mapGenres(data, text) {
+  const out = new Set();
+  const t = (text || '').toLowerCase();
+  for (const gobj of data.genres || []) {
+    const d = (gobj.description || '').toLowerCase();
+    for (const [k, v] of STEAM_GENRE_MAP) if (d.includes(k)) out.add(v);
+  }
+  for (const [k, v] of KEYWORD_GENRE_MAP) if (t.includes(k)) out.add(v);
+  if (out.size === 0) out.add('indie');
+  return [...out].slice(0, 4);
+}
+function mapPlayers(data) {
+  const out = new Set();
+  for (const c of data.categories || []) {
+    const d = (c.description || '').toLowerCase();
+    if (d.includes('jednego gracza')) out.add('single');
+    if (d.includes('wielu graczy') || d.includes('pvp')) out.add('multi');
+    if (d.includes('koopera')) out.add('coop');
+  }
+  if (out.size === 0) out.add('single');
+  return [...out];
+}
+
+// Stałe okresy wyprzedaży (do zakładki Promocje)
+const SALE_PERIODS = [
+  { name: 'Steam — Wyprzedaż Letnia', when: 'koniec czerwca – początek lipca', store: 'Steam', icon: '☀️' },
+  { name: 'Steam — Wyprzedaż Jesienna', when: 'koniec listopada (Black Friday)', store: 'Steam', icon: '🍂' },
+  { name: 'Steam — Wyprzedaż Zimowa', when: 'koniec grudnia – początek stycznia', store: 'Steam', icon: '❄️' },
+  { name: 'Steam — Wyprzedaż Wiosenna', when: 'marzec', store: 'Steam', icon: '🌸' },
+  { name: 'PlayStation — Days of Play', when: 'czerwiec', store: 'PlayStation', icon: '🎮' },
+  { name: 'Xbox — Ultimate Game Sale', when: 'lipiec', store: 'Xbox', icon: '🟢' },
+  { name: 'Epic Games — Mega Wyprzedaż', when: 'maj – czerwiec', store: 'Epic', icon: '🛒' },
+  { name: 'Epic Games — darmowa gra co tydzień', when: 'co czwartek', store: 'Epic', icon: '🎁' },
+];
+
+// Promocje i nadchodzące premiery (Steam featuredcategories)
+async function fetchFeatured() {
+  const j = await fetchJson(`https://store.steampowered.com/api/featuredcategories?cc=${CC}&l=${LANG}`);
+  const upcoming = (j?.coming_soon?.items || []).slice(0, 12).map((it) => ({
+    title: it.name,
+    image: it.header_image || it.large_capsule_image || '',
+    store: `https://store.steampowered.com/app/${it.id}/`,
+  }));
+  const featuredDeals = (j?.specials?.items || []).slice(0, 12).map((it) => ({
+    title: it.name,
+    image: it.large_capsule_image || it.header_image || '',
+    discount: it.discount_percent || 0,
+    price: it.final_price != null ? Math.round(it.final_price / 100) : null,
+    priceOld: it.original_price != null ? Math.round(it.original_price / 100) : null,
+    store: `https://store.steampowered.com/app/${it.id}/`,
+  }));
+  return { upcoming, featuredDeals };
+}
+
+async function enrich(entry, spyEntry) {
   const g = { ...entry };
   if (entry.steam) {
     const det = await fetchJson(
-      `https://store.steampowered.com/api/appdetails?appids=${entry.steam}&cc=${CC}&l=${LANG}&filters=basic,price_overview,metacritic`
+      `https://store.steampowered.com/api/appdetails?appids=${entry.steam}&cc=${CC}&l=${LANG}&filters=basic,price_overview,metacritic,genres,categories,release_date,content_descriptors`
     );
-    const data = det?.[entry.steam]?.success ? det[entry.steam].data : null;
+    const node = det?.[entry.steam];
+    const data = node?.success ? node.data : null;
     if (!data) {
-      console.warn(`  ⚠️  Steam ${entry.steam} (${entry.title}) — brak danych, używam fallbacku`);
+      if (entry.bulk) return null; // nieznane appid z puli — pomiń
     } else {
-      g.title = entry.title || data.name;
+      const adult = (data.content_descriptors?.ids || []).some((id) => [1, 3, 4].includes(id));
+      if (entry.bulk && (data.type !== 'game' || adult)) return null;
+      g.title = entry.bulk ? data.name || entry.title : entry.title || data.name;
       g.image = data.header_image || entry.image;
-      g.description = clean(data.short_description) || entry.description;
+      g.description = clean(data.short_description) || entry.description || '';
+      const po = data.price_overview;
       if (data.is_free) g.price = 0;
-      else if (data.price_overview?.final != null) g.price = Math.round(data.price_overview.final / 100);
-      const rev = await fetchJson(
-        `https://store.steampowered.com/appreviews/${entry.steam}?json=1&language=all&purchase_type=all&num_per_page=0&l=${LANG}`
-      );
-      const qs = rev?.query_summary;
-      const mc = data.metacritic?.score;
-      const pct = qs?.total_reviews ? Math.round((qs.total_positive / qs.total_reviews) * 100) : null;
-      g.review = { score: mc ?? pct ?? entry.review?.score ?? null, label: qs?.review_score_desc || entry.review?.label || '' };
-      if (g.review.score != null) g.rating = Math.round((g.review.score / 10) * 10) / 10;
-      await sleep(300);
+      else if (po?.final != null) {
+        g.price = Math.round(po.final / 100);
+        if (po.discount_percent > 0) {
+          g.discount = po.discount_percent;
+          g.priceOld = Math.round(po.initial / 100);
+        }
+      } else if (entry.price != null) g.price = entry.price;
+      g.platform = entry.platform || ['pc'];
+      g.genre = entry.genre || mapGenres(data, `${data.name} ${data.short_description}`);
+      g.players = entry.players || mapPlayers(data);
+      g.year = entry.year || parseYear(data.release_date);
+      g.comingSoon = !!data.release_date?.coming_soon;
+      const rv = deriveReview(data, spyEntry, entry);
+      g.review = rv;
+      if (rv.score != null) g.rating = Math.round((rv.score / 10) * 10) / 10;
     }
-  }
-  // Miniaturka dla wpisów spoza Steam.
-  // entry.image (na stałe) ma priorytet — deterministyczne, bez zapytań.
-  if (!entry.steam && !entry.image) {
+  } else if (!entry.image) {
+    // Miniaturka dla wpisów spoza Steam (Nintendo: stały URL; mobile: App Store)
     if (entry.src === 'itunes') {
       const info = await itunesInfo(entry.q || entry.title);
       g.image = info.image;
@@ -126,18 +259,19 @@ async function enrich(entry) {
     } else {
       g.image = await wikiImage(entry.q || entry.title);
     }
-    await sleep(200);
-    if (!g.image || !(await headOk(g.image))) {
-      console.warn(`  ⚠️  Brak/niedziałająca miniaturka: ${g.title} -> ${g.image || '(pusta)'}`);
-    }
+    await sleep(150);
   }
+
+  if (!g.platform) g.platform = ['pc'];
+  if (!g.genre || g.genre.length === 0) g.genre = ['indie'];
+  if (!g.players || g.players.length === 0) g.players = ['single'];
   g.stores = buildStores(g);
-  // Auto-tagi z gatunków + tryb gry
   g.tags = buildTags(g);
-  if (g.price == null) {
-    console.warn(`  ⚠️  Brak ceny: ${g.title} (ustawiam 0)`);
-    g.price = 0;
-  }
+  if (g.price == null) g.price = 0;
+  if (g.rating == null) g.rating = entry.rating ?? 7.5;
+  if (g.discount == null) g.discount = 0;
+  if (g.priceOld == null) g.priceOld = null;
+  if (g.comingSoon == null) g.comingSoon = false;
   return g;
 }
 
@@ -262,32 +396,49 @@ const SEED = [
 ];
 
 async function main() {
-  const seed = SEED.map((s, i) => ({
-    id: i + 1,
-    steam: s.steam || null,
-    title: s.title,
-    platform: s.p,
-    genre: s.gr,
-    players: s.pl,
-    year: s.y,
-    price: s.price ?? null,
-    rating: s.rating ?? null,
-    image: s.image || '',
-    description: s.description || '',
-    review: s.review || null,
-    src: s.src || null,
-    q: s.q || null,
-    cs: s.cs || null,
-  }));
+  console.log('▸ Pobieram listy popularnych gier (SteamSpy)…');
+  const { map: spy, order: spyOrder } = await steamspyPool();
+  console.log(`  SteamSpy: ${spyOrder.length} kandydatów`);
+
+  const curatedSteam = new Map();
+  const curatedNonSteam = [];
+  for (const s of SEED) {
+    const base = {
+      steam: s.steam || null, title: s.title, platform: s.p, genre: s.gr, players: s.pl,
+      year: s.y, price: s.price ?? null, rating: s.rating ?? null, image: s.image || '',
+      description: s.description || '', review: s.review || null, src: s.src || null, q: s.q || null, cs: s.cs || null,
+    };
+    if (s.steam) curatedSteam.set(s.steam, base);
+    else curatedNonSteam.push(base);
+  }
+
+  const CAP = 200; // łączny limit gier ze Steam
+  const order = [...curatedSteam.keys()];
+  for (const id of spyOrder) {
+    if (order.length >= CAP) break;
+    if (!curatedSteam.has(id)) order.push(id);
+  }
+  console.log(`▸ Pobieram dane Steam dla ${order.length} gier (to potrwa kilka minut)…`);
 
   const out = [];
-  for (const e of seed) {
-    process.stdout.write(`• ${e.title} … `);
-    const g = await enrich(e);
-    out.push(g);
-    console.log(`${g.price === 0 ? 'Darmowa' : g.price + ' zł'} | ocena ${g.rating ?? '—'} | ${g.review?.label || '—'}`);
-    if (e.steam) await sleep(250);
+  let n = 0;
+  for (const appid of order) {
+    const override = curatedSteam.get(appid);
+    const entry = override ? { ...override, steam: appid } : { steam: appid, title: spy.get(appid)?.name || '', bulk: true };
+    const g = await enrich(entry, spy.get(appid));
+    n++;
+    if (g) out.push(g);
+    if (n % 20 === 0) console.log(`  …${n}/${order.length} (zebrano ${out.length})`);
+    await sleep(350);
   }
+  for (const e of curatedNonSteam) {
+    const g = await enrich(e, null);
+    if (g) out.push(g);
+  }
+  out.forEach((g, i) => (g.id = i + 1));
+
+  console.log('▸ Pobieram promocje i nadchodzące premiery…');
+  const { upcoming, featuredDeals } = await fetchFeatured();
 
   const file = `// WYGENEROWANE przez scripts/build-games.mjs — prawdziwe dane ze Steam (ceny w PLN).
 // Aby zaktualizować: node scripts/build-games.mjs
@@ -314,9 +465,16 @@ export const SORT_OPTIONS = [
   { id: "year", label: "Najnowsze" },
   { id: "name", label: "Nazwa A–Z" },
 ];
+
+export const salePeriods = ${JSON.stringify(SALE_PERIODS, null, 2)};
+
+export const upcoming = ${JSON.stringify(upcoming, null, 2)};
+
+export const featuredDeals = ${JSON.stringify(featuredDeals, null, 2)};
 `;
   writeFileSync(new URL('../src/data/games.js', import.meta.url), file);
-  console.log(`\n✅ Zapisano ${out.length} gier do src/data/games.js`);
+  const onSale = out.filter((g) => g.discount > 0).length;
+  console.log(`\n✅ ${out.length} gier (${onSale} z promocją), ${featuredDeals.length} ofert Steam, ${upcoming.length} nadchodzących → src/data/games.js`);
 }
 
 function serialize(arr) {
@@ -328,8 +486,11 @@ function serialize(arr) {
       genre: g.genre,
       players: g.players,
       price: g.price,
+      priceOld: g.priceOld ?? null,
+      discount: g.discount ?? 0,
       rating: g.rating,
       year: g.year,
+      comingSoon: g.comingSoon ?? false,
       image: g.image,
       description: g.description,
       review: g.review,

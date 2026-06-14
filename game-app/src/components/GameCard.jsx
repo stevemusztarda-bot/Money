@@ -15,8 +15,9 @@ function reviewColor(label = '') {
   return '#a78bfa';
 }
 
-function GameCard({ game, index, isFavorite, onToggleFavorite }) {
+function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
   const isFree = game.price === 0;
+  const onSale = game.discount > 0 && game.priceOld;
   const [imgFailed, setImgFailed] = useState(false);
   const review = game.review;
 
@@ -26,7 +27,12 @@ function GameCard({ game, index, isFavorite, onToggleFavorite }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index, 8) * 0.06, duration: 0.4 }}
       whileHover={{ y: -6 }}
-      className="group relative rounded-2xl overflow-hidden cursor-default flex flex-col"
+      onClick={() => onOpen?.(game)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen?.(game))}
+      role="button"
+      tabIndex={0}
+      aria-label={`Zobacz szczegóły: ${game.title}`}
+      className="group relative rounded-2xl overflow-hidden cursor-pointer flex flex-col"
       style={{ background: '#0d0d1a', border: '1px solid #ffffff12', boxShadow: '0 4px 24px #00000066' }}
     >
       {/* Game image */}
@@ -55,16 +61,19 @@ function GameCard({ game, index, isFavorite, onToggleFavorite }) {
           ★ {game.rating}
         </div>
 
-        {isFree && (
+        {(isFree || onSale) && (
           <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>
-            DARMOWA
+            {isFree ? 'DARMOWA' : `-${game.discount}%`}
           </div>
         )}
 
         {/* Favorite button */}
         <button
           type="button"
-          onClick={() => onToggleFavorite(game.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(game.id);
+          }}
           aria-pressed={isFavorite}
           aria-label={isFavorite ? `Usuń ${game.title} z ulubionych` : `Dodaj ${game.title} do ulubionych`}
           title={isFavorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}
@@ -110,9 +119,19 @@ function GameCard({ game, index, isFavorite, onToggleFavorite }) {
 
         {/* Price + platforms + players */}
         <div className="flex items-center justify-between gap-2 mb-3 mt-auto">
-          <span className="font-bold text-lg" style={{ color: isFree ? '#22c55e' : '#fff' }}>
-            {formatPrice(game.price)}
-          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="font-bold text-lg" style={{ color: isFree ? '#22c55e' : '#fff' }}>
+              {formatPrice(game.price)}
+            </span>
+            {onSale && (
+              <>
+                <span className="text-xs text-gray-500 line-through">{game.priceOld} zł</span>
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ background: '#16a34a', color: '#fff' }}>
+                  -{game.discount}%
+                </span>
+              </>
+            )}
+          </div>
           <div className="flex items-center gap-2.5">
             {game.players?.length > 0 && (
               <div className="flex gap-1" title={game.players.map((p) => PLAYER_META[p]?.label).join(', ')}>
@@ -140,6 +159,7 @@ function GameCard({ game, index, isFavorite, onToggleFavorite }) {
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all hover:brightness-125"
                   style={{ background: '#ffffff0a', color: '#cbd5e1', border: '1px solid #ffffff18' }}
                   title={`${game.title} — ${s.name} (oficjalny sklep)`}

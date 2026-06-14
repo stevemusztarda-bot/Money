@@ -5,6 +5,7 @@ import PlatformStep from './components/PlatformStep';
 import BudgetStep from './components/BudgetStep';
 import GenreStep from './components/GenreStep';
 import ResultsStep from './components/ResultsStep';
+import DealsView from './components/DealsView';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { genres as ALL_GENRES } from './data/games';
 import './index.css';
@@ -13,6 +14,8 @@ const LAST_STEP = 3;
 const INTERACTIVE = new Set(['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A']);
 
 export default function App() {
+  // Aktywny widok: kreator gier lub promocje.
+  const [view, setView] = useLocalStorage('gamepicker:view', 'finder');
   // Postęp kreatora zapisywany w localStorage — odświeżenie nie gubi wyborów.
   const [step, setStep] = useLocalStorage('gamepicker:step', 0);
   const [platform, setPlatform] = useLocalStorage('gamepicker:platform', null);
@@ -115,6 +118,37 @@ export default function App() {
           </div>
           <p style={{ color: '#8a8aa0', fontSize: 14, margin: 0 }}>Znajdź idealną grę dla siebie w kilka sekund</p>
         </motion.div>
+
+        {/* Nawigacja: kreator / promocje */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 20 }}>
+          {[
+            { id: 'finder', label: '🔎 Znajdź grę' },
+            { id: 'deals', label: '🔥 Promocje' },
+          ].map((tab) => {
+            const active = view === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setView(tab.id)}
+                aria-pressed={active}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: 999,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  color: active ? '#fff' : '#9a9ab0',
+                  background: active ? 'linear-gradient(135deg,#6c63ff,#a855f7)' : '#ffffff0a',
+                  border: active ? '1px solid transparent' : '1px solid #ffffff14',
+                  boxShadow: active ? '0 0 20px #6c63ff55' : 'none',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
       {/* Main card */}
@@ -129,7 +163,28 @@ export default function App() {
           zIndex: 10,
         }}
       >
+        {view === 'deals' ? (
+          <motion.div
+            key="deals"
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            style={{
+              width: '100%',
+              maxWidth: 1100,
+              borderRadius: 28,
+              padding: 'clamp(24px, 5vw, 48px) clamp(20px, 4vw, 40px)',
+              background: '#0a0a18ee',
+              border: '1px solid #ffffff0d',
+              backdropFilter: 'blur(20px)',
+              boxShadow: '0 32px 80px #00000088, inset 0 1px 0 #ffffff08',
+            }}
+          >
+            <DealsView />
+          </motion.div>
+        ) : (
         <motion.div
+          key="wizard"
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -236,6 +291,7 @@ export default function App() {
             </motion.div>
           )}
         </motion.div>
+        )}
       </main>
 
       <footer style={{ textAlign: 'center', paddingBottom: 24, color: '#444', fontSize: 12, position: 'relative', zIndex: 10 }}>
