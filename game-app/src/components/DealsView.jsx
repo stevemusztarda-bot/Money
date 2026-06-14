@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { games, featuredDeals, upcoming, salePeriods } from '../data/games';
+import { games, featuredDeals, salePeriods } from '../data/games';
 import { useFavorites } from '../hooks/useFavorites';
 import { gamesWord } from '../utils/format';
 import GameCard from './GameCard';
@@ -41,17 +41,6 @@ export default function DealsView() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {featuredDeals.map((d) => (
               <DealBanner key={d.store} item={d} />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* Nadchodzące premiery */}
-      {upcoming?.length > 0 && (
-        <Section title="Nadchodzące premiery" subtitle="Gry zapowiedziane wkrótce na Steam">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {upcoming.map((u) => (
-              <UpcomingCard key={u.store} item={u} />
             ))}
           </div>
         </Section>
@@ -138,30 +127,3 @@ function DealBanner({ item }) {
   );
 }
 
-function UpcomingCard({ item }) {
-  const [failed, setFailed] = useState(false);
-  return (
-    <a
-      href={item.store}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="relative block rounded-2xl overflow-hidden group"
-      style={{ background: '#0d0d1a', border: '1px solid #ffffff14' }}
-    >
-      <div className="relative h-32 overflow-hidden">
-        {!failed && item.image ? (
-          <img src={item.image} alt={item.title} loading="lazy" onError={() => setFailed(true)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-4xl" style={{ background: '#111' }}>🎮</div>
-        )}
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold" style={{ background: 'linear-gradient(135deg,#6c63ff,#a855f7)', color: '#fff' }}>
-          WKRÓTCE
-        </span>
-      </div>
-      <div className="p-3 flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-white truncate">{item.title}</div>
-        <span className="text-xs text-gray-500 shrink-0">Steam ↗</span>
-      </div>
-    </a>
-  );
-}

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PLATFORM_META, PLAYER_META, genres as ALL_GENRES } from '../data/games';
 import { formatPrice } from '../utils/format';
+import { buildStores } from '../utils/stores';
 
 const reviewColor = (label = '') => {
   const l = label.toLowerCase();
@@ -30,6 +31,7 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
   if (!game) return null;
   const isFree = game.price === 0;
   const onSale = game.discount > 0 && game.priceOld;
+  const stores = buildStores(game);
 
   // Portal do document.body — modal nie może być wewnątrz karty z backdrop-filter,
   // bo wtedy position:fixed liczy się względem karty, a nie ekranu.
@@ -148,11 +150,11 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
             </div>
 
             {/* Stores */}
-            {game.stores?.length > 0 && (
+            {stores.length > 0 && (
               <div style={{ marginTop: 22 }}>
                 <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#777', marginBottom: 10 }}>Gdzie kupić — oficjalne sklepy</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {game.stores.map((s) => (
+                  {stores.map((s) => (
                     <a
                       key={s.name}
                       href={s.url}

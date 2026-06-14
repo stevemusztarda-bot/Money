@@ -99,6 +99,7 @@ async function steamspyPool() {
     'https://steamspy.com/api.php?request=top100in2weeks',
     'https://steamspy.com/api.php?request=top100forever',
     'https://steamspy.com/api.php?request=all&page=0',
+    'https://steamspy.com/api.php?request=all&page=1',
   ];
   for (const url of urls) {
     const j = await fetchJson(url);
@@ -161,6 +162,12 @@ const KEYWORD_GENRE_MAP = [
   ['puzzle', 'puzzle'], ['logiczn', 'puzzle'], ['moba', 'moba'],
   ['fighting', 'fighting'], ['bijatyk', 'fighting'], ['sandbox', 'sandbox'], ['piaskownic', 'sandbox'],
   ['fps', 'fps'], ['first-person shooter', 'fps'], ['strzelank', 'fps'], ['shooter', 'fps'],
+  ['mmorpg', 'mmo'], ['mmo', 'mmo'], ['massively multiplayer', 'mmo'],
+  ['soulslike', 'rpg'], ['souls-like', 'rpg'], ['hack and slash', 'action'], ['hack & slash', 'action'],
+  ['tower defense', 'strategy'], ['deckbuild', 'strategy'], ['card game', 'strategy'], ['karcian', 'strategy'],
+  ['stealth', 'action'], ['visual novel', 'adventure'], ['point-and-click', 'adventure'], ['open world', 'adventure'],
+  ['simulator', 'simulation'], ['farming', 'simulation'], ['city builder', 'simulation'], ['racing', 'racing'], ['wyścig', 'racing'],
+  ['anime', 'rpg'], ['dungeon crawler', 'rpg'], ['turn-based', 'strategy'],
 ];
 function mapGenres(data, text) {
   const out = new Set();
@@ -213,7 +220,21 @@ async function fetchFeatured() {
     priceOld: it.original_price != null ? Math.round(it.original_price / 100) : null,
     store: `https://store.steampowered.com/app/${it.id}/`,
   }));
-  return { upcoming, featuredDeals };
+
+  // Wyróżniona premiera — GTA VI (najbardziej oczekiwana gra)
+  const gtaImg = (await wikiImage('Grand Theft Auto VI')) || 'https://upload.wikimedia.org/wikipedia/en/4/46/Grand_Theft_Auto_VI.png';
+  const featuredPremiere = {
+    title: 'Grand Theft Auto VI',
+    image: gtaImg,
+    when: 'Oczekiwana premiera: 2026',
+    tags: ['Akcja', 'Open World', 'Najbardziej oczekiwana'],
+    description:
+      'Powrót do Vice City w największej i najbardziej wyczekiwanej produkcji Rockstar Games. Nowy rozdział serii GTA.',
+    platform: ['console', 'pc'],
+    store: 'https://www.rockstargames.com/VI',
+  };
+
+  return { upcoming, featuredDeals, featuredPremiere };
 }
 
 async function enrich(entry, spyEntry) {
@@ -230,7 +251,8 @@ async function enrich(entry, spyEntry) {
       const adult = (data.content_descriptors?.ids || []).some((id) => [1, 3, 4].includes(id));
       if (entry.bulk && (data.type !== 'game' || adult)) return null;
       g.title = entry.bulk ? data.name || entry.title : entry.title || data.name;
-      g.image = data.header_image || entry.image;
+      // Stabilny, kanoniczny URL okładki (z ID) — pewniejszy niż header_image z hashem/?t=
+      g.image = `https://cdn.akamai.steamstatic.com/steam/apps/${entry.steam}/header.jpg`;
       g.description = clean(data.short_description) || entry.description || '';
       const po = data.price_overview;
       if (data.is_free) g.price = 0;
@@ -412,7 +434,7 @@ async function main() {
     else curatedNonSteam.push(base);
   }
 
-  const CAP = 200; // łączny limit gier ze Steam
+  const CAP = 280; // łączny limit gier ze Steam
   const order = [...curatedSteam.keys()];
   for (const id of spyOrder) {
     if (order.length >= CAP) break;
@@ -438,7 +460,7 @@ async function main() {
   out.forEach((g, i) => (g.id = i + 1));
 
   console.log('▸ Pobieram promocje i nadchodzące premiery…');
-  const { upcoming, featuredDeals } = await fetchFeatured();
+  const { upcoming, featuredDeals, featuredPremiere } = await fetchFeatured();
 
   const file = `// WYGENEROWANE przez scripts/build-games.mjs — prawdziwe dane ze Steam (ceny w PLN).
 // Aby zaktualizować: node scripts/build-games.mjs
@@ -471,6 +493,8 @@ export const salePeriods = ${JSON.stringify(SALE_PERIODS, null, 2)};
 export const upcoming = ${JSON.stringify(upcoming, null, 2)};
 
 export const featuredDeals = ${JSON.stringify(featuredDeals, null, 2)};
+
+export const featuredPremiere = ${JSON.stringify(featuredPremiere, null, 2)};
 `;
   writeFileSync(new URL('../src/data/games.js', import.meta.url), file);
   const onSale = out.filter((g) => g.discount > 0).length;
@@ -495,7 +519,9 @@ function serialize(arr) {
       description: g.description,
       review: g.review,
       tags: g.tags,
-      stores: g.stores,
+      steam: g.steam || null,
+      cs: g.cs || null,
+      appStoreUrl: g.appStoreUrl || null,
     };
     return '  ' + JSON.stringify(o);
   });

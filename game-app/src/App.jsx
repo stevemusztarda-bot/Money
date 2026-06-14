@@ -6,6 +6,7 @@ import BudgetStep from './components/BudgetStep';
 import GenreStep from './components/GenreStep';
 import ResultsStep from './components/ResultsStep';
 import DealsView from './components/DealsView';
+import PremieresView from './components/PremieresView';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { genres as ALL_GENRES } from './data/games';
 import './index.css';
@@ -124,13 +125,16 @@ export default function App() {
           {[
             { id: 'finder', label: '🔎 Znajdź grę' },
             { id: 'deals', label: '🔥 Promocje' },
+            { id: 'premiery', label: '🚀 Premiery' },
           ].map((tab) => {
             const active = view === tab.id;
             return (
-              <button
+              <motion.button
                 key={tab.id}
                 onClick={() => setView(tab.id)}
                 aria-pressed={active}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 style={{
                   padding: '9px 20px',
                   borderRadius: 999,
@@ -145,7 +149,7 @@ export default function App() {
                 }}
               >
                 {tab.label}
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -163,31 +167,34 @@ export default function App() {
           zIndex: 10,
         }}
       >
-        {view === 'deals' ? (
+        <AnimatePresence mode="wait">
+        {view !== 'finder' ? (
           <motion.div
-            key="deals"
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            key={view}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35 }}
             style={{
               width: '100%',
               maxWidth: 1100,
               borderRadius: 28,
-              padding: 'clamp(24px, 5vw, 48px) clamp(20px, 4vw, 40px)',
+              padding: 'clamp(20px, 5vw, 48px) clamp(16px, 4vw, 40px)',
               background: '#0a0a18ee',
               border: '1px solid #ffffff0d',
               backdropFilter: 'blur(20px)',
               boxShadow: '0 32px 80px #00000088, inset 0 1px 0 #ffffff08',
             }}
           >
-            <DealsView />
+            {view === 'deals' ? <DealsView /> : <PremieresView />}
           </motion.div>
         ) : (
         <motion.div
           key="wizard"
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -16 }}
+          transition={{ duration: 0.35 }}
           style={{
             width: '100%',
             maxWidth: 900,
@@ -292,6 +299,7 @@ export default function App() {
           )}
         </motion.div>
         )}
+        </AnimatePresence>
       </main>
 
       <footer style={{ textAlign: 'center', paddingBottom: 24, color: '#444', fontSize: 12, position: 'relative', zIndex: 10 }}>
