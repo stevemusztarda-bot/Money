@@ -104,7 +104,7 @@ export default function PlatformStep({ selected, onSelect }) {
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg,#6c63ff,#a855f7)' }}
+                  style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent2))' }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                     <polyline points="20 6 9 17 4 12" />

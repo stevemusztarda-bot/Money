@@ -20,7 +20,7 @@ export default function StepIndicator({ current, onStepClick }) {
                 aria-current={active ? 'step' : undefined}
                 initial={false}
                 animate={{
-                  background: done || active ? 'linear-gradient(135deg,#6c63ff,#a855f7)' : 'transparent',
+                  background: done || active ? 'linear-gradient(135deg,var(--accent),var(--accent2))' : 'transparent',
                   borderColor: done || active ? 'transparent' : '#333',
                 }}
                 whileHover={clickable ? { scale: 1.12 } : {}}
@@ -51,7 +51,7 @@ export default function StepIndicator({ current, onStepClick }) {
             {i < steps.length - 1 && (
               <div
                 className="w-16 h-px mx-1 mb-5"
-                style={{ background: done ? 'linear-gradient(90deg,#6c63ff,#a855f7)' : '#222' }}
+                style={{ background: done ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : '#222' }}
               />
             )}
           </div>

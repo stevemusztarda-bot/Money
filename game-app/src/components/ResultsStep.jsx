@@ -246,7 +246,7 @@ function ToggleChip({ active, onClick, children }) {
       aria-pressed={active}
       className="px-4 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap"
       style={{
-        background: active ? 'linear-gradient(135deg,#6c63ff,#a855f7)' : '#0d0d1a',
+        background: active ? 'linear-gradient(135deg,var(--accent),var(--accent2))' : '#0d0d1a',
         color: active ? '#fff' : '#888',
         border: active ? '1px solid transparent' : '1px solid #ffffff18',
         boxShadow: active ? '0 0 16px #6c63ff55' : 'none',

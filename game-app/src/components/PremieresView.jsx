@@ -70,7 +70,7 @@ function FeaturedPremiere({ item }) {
               </span>
             ))}
           </div>
-          <span className="self-start px-5 py-2.5 rounded-full text-sm font-semibold" style={{ background: 'linear-gradient(135deg,#6c63ff,#a855f7)', color: '#fff', boxShadow: '0 0 20px #6c63ff55' }}>
+          <span className="self-start px-5 py-2.5 rounded-full text-sm font-semibold" style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent2))', color: '#fff', boxShadow: '0 0 20px #6c63ff55' }}>
             Strona oficjalna ↗
           </span>
         </div>
@@ -99,7 +99,7 @@ function UpcomingCard({ item, index }) {
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-4xl" style={{ background: '#111' }}>🎮</div>
         )}
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold" style={{ background: 'linear-gradient(135deg,#6c63ff,#a855f7)', color: '#fff' }}>
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-bold" style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent2))', color: '#fff' }}>
           WKRÓTCE
         </span>
       </div>

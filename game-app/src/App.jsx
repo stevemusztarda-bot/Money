@@ -7,7 +7,11 @@ import GenreStep from './components/GenreStep';
 import ResultsStep from './components/ResultsStep';
 import DealsView from './components/DealsView';
 import PremieresView from './components/PremieresView';
+import SettingsView from './components/SettingsView';
+import MyView from './components/MyView';
+import NotificationsBell from './components/NotificationsBell';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useSettings } from './settings-context';
 import { genres as ALL_GENRES } from './data/games';
 import './index.css';
 
@@ -15,6 +19,7 @@ const LAST_STEP = 3;
 const INTERACTIVE = new Set(['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A']);
 
 export default function App() {
+  const { t, profile } = useSettings();
   // Aktywny widok: kreator gier lub promocje.
   const [view, setView] = useLocalStorage('gamepicker:view', 'finder');
   // Postęp kreatora zapisywany w localStorage — odświeżenie nie gubi wyborów.
@@ -98,7 +103,7 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 22,
-                background: 'linear-gradient(135deg,#6c63ff,#a855f7)',
+                background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
               }}
             >
               🎮
@@ -117,15 +122,17 @@ export default function App() {
               GamePicker
             </span>
           </div>
-          <p style={{ color: '#8a8aa0', fontSize: 14, margin: 0 }}>Znajdź idealną grę dla siebie w kilka sekund</p>
+          <p style={{ color: '#8a8aa0', fontSize: 14, margin: 0 }}>{t('app.subtitle')}</p>
         </motion.div>
 
-        {/* Nawigacja: kreator / promocje */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 20 }}>
+        {/* Nawigacja + profil + powiadomienia */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
           {[
-            { id: 'finder', label: '🔎 Znajdź grę' },
-            { id: 'deals', label: '🔥 Promocje' },
-            { id: 'premiery', label: '🚀 Premiery' },
+            { id: 'finder', label: `🔎 ${t('nav.finder')}` },
+            { id: 'deals', label: `🔥 ${t('nav.deals')}` },
+            { id: 'premiery', label: `🚀 ${t('nav.premieres')}` },
+            { id: 'my', label: `⭐ ${t('nav.my')}` },
+            { id: 'settings', label: `⚙️ ${t('nav.settings')}` },
           ].map((tab) => {
             const active = view === tab.id;
             return (
@@ -136,22 +143,38 @@ export default function App() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 style={{
-                  padding: '9px 20px',
+                  padding: '9px 18px',
                   borderRadius: 999,
                   fontSize: 14,
                   fontWeight: 600,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   color: active ? '#fff' : '#9a9ab0',
-                  background: active ? 'linear-gradient(135deg,#6c63ff,#a855f7)' : '#ffffff0a',
+                  background: active ? 'linear-gradient(135deg,var(--accent),var(--accent2))' : '#ffffff0a',
                   border: active ? '1px solid transparent' : '1px solid #ffffff14',
-                  boxShadow: active ? '0 0 20px #6c63ff55' : 'none',
+                  boxShadow: active ? '0 0 20px var(--accent)' : 'none',
                 }}
               >
                 {tab.label}
               </motion.button>
             );
           })}
+
+          <NotificationsBell />
+
+          <button
+            onClick={() => setView('my')}
+            aria-label={t('settings.profile')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 999,
+              background: '#ffffff0a', border: '1px solid #ffffff14', color: '#ddd', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
+            }}
+          >
+            <span style={{ width: 28, height: 28, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, background: 'linear-gradient(135deg,var(--accent),var(--accent2))' }}>
+              {profile.avatar}
+            </span>
+            {profile.nick || 'Gość'}
+          </button>
         </div>
       </header>
 
@@ -186,7 +209,7 @@ export default function App() {
               boxShadow: '0 32px 80px #00000088, inset 0 1px 0 #ffffff08',
             }}
           >
-            {view === 'deals' ? <DealsView /> : <PremieresView />}
+            {view === 'deals' ? <DealsView /> : view === 'premiery' ? <PremieresView /> : view === 'my' ? <MyView /> : <SettingsView />}
           </motion.div>
         ) : (
         <motion.div
@@ -262,7 +285,7 @@ export default function App() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
-                Wstecz
+                {t('wizard.back')}
               </button>
 
               <motion.button
@@ -279,7 +302,7 @@ export default function App() {
                   borderRadius: 999,
                   fontSize: 14,
                   fontWeight: 600,
-                  background: nextDisabled ? '#222' : 'linear-gradient(135deg,#6c63ff,#a855f7)',
+                  background: nextDisabled ? '#222' : 'linear-gradient(135deg,var(--accent),var(--accent2))',
                   color: '#fff',
                   border: 'none',
                   cursor: nextDisabled ? 'not-allowed' : 'pointer',
@@ -288,7 +311,7 @@ export default function App() {
                   fontFamily: 'inherit',
                 }}
               >
-                {step === 2 ? 'Pokaż gry 🎮' : 'Dalej'}
+                {step === 2 ? t('wizard.show') : t('wizard.next')}
                 {step !== 2 && (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 18l6-6-6-6" />

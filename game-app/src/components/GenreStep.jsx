@@ -57,7 +57,7 @@ export default function GenreStep({ selected, onToggle, onSelectAll, onClear }) 
               aria-pressed={isSelected}
               className="flex items-center gap-2 px-5 py-3 rounded-full border-2 cursor-pointer font-medium transition-all duration-200"
               style={{
-                background: isSelected ? 'linear-gradient(135deg,#6c63ff,#a855f7)' : '#ffffff08',
+                background: isSelected ? 'linear-gradient(135deg,var(--accent),var(--accent2))' : '#ffffff08',
                 borderColor: isSelected ? '#6c63ff' : '#ffffff18',
                 color: isSelected ? '#fff' : '#888',
                 boxShadow: isSelected ? '0 0 18px #6c63ff55' : 'none',

@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { PLATFORM_META, PLAYER_META, genres as ALL_GENRES } from '../data/games';
 import { formatPrice } from '../utils/format';
 import { buildStores, imageUrl } from '../utils/stores';
+import { useReviews } from '../hooks/useReviews';
+import { useT } from '../settings-context';
 
 const reviewColor = (label = '') => {
   const l = label.toLowerCase();
@@ -17,6 +19,20 @@ const genreLabel = (id) => ALL_GENRES.find((g) => g.id === id)?.label || id;
 
 export default function GameDetailModal({ game, isFavorite, onToggleFavorite, onClose }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const t = useT();
+  const { getReview, saveReview } = useReviews();
+  const existing = game ? getReview(game.id) : null;
+  // Wczytanie zapisanej opinii bez useEffect (wzorzec „dostosuj stan w renderze")
+  const [draftId, setDraftId] = useState(game?.id);
+  const [rating, setRating] = useState(existing?.rating || 0);
+  const [text, setText] = useState(existing?.text || '');
+  const [saved, setSaved] = useState(false);
+  if (game && draftId !== game.id) {
+    setDraftId(game.id);
+    setRating(existing?.rating || 0);
+    setText(existing?.text || '');
+    setSaved(false);
+  }
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
@@ -169,6 +185,37 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
                 </div>
               </div>
             )}
+
+            {/* Twoja opinia (zapis lokalny w przeglądarce) */}
+            <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid #ffffff12' }}>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#777', marginBottom: 10 }}>{t('review.your')}</div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setRating(s); setSaved(false); }}
+                    aria-label={`${s}/5`}
+                    style={{ fontSize: 26, lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', color: s <= rating ? '#fbbf24' : '#444' }}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={text}
+                onChange={(e) => { setText(e.target.value); setSaved(false); }}
+                placeholder={t('review.placeholder')}
+                rows={3}
+                style={{ width: '100%', resize: 'vertical', borderRadius: 12, padding: '10px 14px', background: '#0d0d1a', border: '1px solid #ffffff18', color: '#fff', outline: 'none', fontFamily: 'inherit' }}
+              />
+              <button
+                onClick={() => { if (rating > 0) { saveReview(game.id, rating, text); setSaved(true); } }}
+                disabled={rating === 0}
+                style={{ marginTop: 10, padding: '10px 20px', borderRadius: 999, fontWeight: 600, color: '#fff', border: 'none', cursor: rating ? 'pointer' : 'not-allowed', opacity: rating ? 1 : 0.4, background: 'linear-gradient(135deg,var(--accent),var(--accent2))' }}
+              >
+                {saved ? '✓ Zapisano' : t('review.save')}
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>

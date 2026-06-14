@@ -2,6 +2,28 @@
 
 @import "tailwindcss";
 
+/* Kolor akcentu (sterowany atrybutem data-accent na <html> z Ustawień) */
+:root {
+  --accent: #6c63ff;
+  --accent2: #a855f7;
+}
+:root[data-accent="red"] {
+  --accent: #ef4444;
+  --accent2: #f97316;
+}
+:root[data-accent="blue"] {
+  --accent: #3b82f6;
+  --accent2: #22d3ee;
+}
+:root[data-accent="green"] {
+  --accent: #22c55e;
+  --accent2: #84cc16;
+}
+:root[data-accent="pink"] {
+  --accent: #ec4899;
+  --accent2: #f472b6;
+}
+
 * {
   box-sizing: border-box;
 }
