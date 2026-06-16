@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { RAM_OPTIONS, GPU_TIERS, hasSpecs } from '../utils/compat';
 
 const platforms = [
   {
@@ -48,7 +49,7 @@ const platforms = [
   },
 ];
 
-export default function PlatformStep({ selected, onSelect }) {
+export default function PlatformStep({ selected, onSelect, specs, onSpecs }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -104,7 +105,7 @@ export default function PlatformStep({ selected, onSelect }) {
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg,#6c63ff,#a855f7)' }}
+                  style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent2))' }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                     <polyline points="20 6 9 17 4 12" />
@@ -115,6 +116,78 @@ export default function PlatformStep({ selected, onSelect }) {
           );
         })}
       </div>
+
+      {/* Specyfikacja PC — opcjonalna, z możliwością pominięcia */}
+      <AnimatePresence>
+        {selected === 'pc' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="max-w-2xl mx-auto mt-6 p-5 rounded-2xl"
+            style={{ background: '#ffffff06', border: '1px solid #ffffff12' }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="font-bold text-white">
+                💻 Twój komputer <span className="text-xs text-gray-500 font-normal">(opcjonalne)</span>
+              </span>
+              <button
+                onClick={() => onSpecs(null)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={{ background: '#ffffff0a', color: '#888', border: '1px solid #ffffff14', cursor: 'pointer' }}
+              >
+                Pomiń
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Podpowiemy, które gry ruszą na Twoim sprzęcie. Nie chcesz? Kliknij „Pomiń" lub po prostu „Dalej".
+            </p>
+
+            <div className="text-sm text-gray-400 mb-2">Pamięć RAM</div>
+            <div className="flex flex-wrap gap-2 mb-5">
+              {RAM_OPTIONS.map((r) => (
+                <Chip key={r} active={specs?.ram === r} onClick={() => onSpecs({ ...specs, ram: r })}>
+                  {r} GB
+                </Chip>
+              ))}
+            </div>
+
+            <div className="text-sm text-gray-400 mb-2">Karta graficzna</div>
+            <div className="flex flex-wrap gap-2">
+              {GPU_TIERS.map((t) => (
+                <Chip key={t.id} active={specs?.gpu === t.id} onClick={() => onSpecs({ ...specs, gpu: t.id })} title={t.hint}>
+                  {t.label}
+                </Chip>
+              ))}
+            </div>
+
+            {hasSpecs(specs) && (
+              <p className="text-xs mt-4" style={{ color: '#a78bfa' }}>
+                ✅ Świetnie — na liście gier oznaczymy, co uruchomisz.
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
+  );
+}
+
+function Chip({ active, onClick, title, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      className="px-4 py-2 rounded-full text-sm font-medium transition-all"
+      style={{
+        background: active ? 'linear-gradient(135deg,var(--accent),var(--accent2))' : '#ffffff08',
+        color: active ? '#fff' : '#aaa',
+        border: active ? '1px solid transparent' : '1px solid #ffffff18',
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   );
 }

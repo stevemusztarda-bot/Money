@@ -1,36 +1,70 @@
-import { useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import StepIndicator from './components/StepIndicator';
 import PlatformStep from './components/PlatformStep';
 import BudgetStep from './components/BudgetStep';
 import GenreStep from './components/GenreStep';
 import ResultsStep from './components/ResultsStep';
+import DealsView from './components/DealsView';
+import PremieresView from './components/PremieresView';
+import SettingsView from './components/SettingsView';
+import MyView from './components/MyView';
+import NotificationsBell from './components/NotificationsBell';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import { useSettings } from './settings-context';
+import { genres as ALL_GENRES } from './data/games';
 import './index.css';
 
-export default function App() {
-  const [step, setStep] = useState(0);
-  const [platform, setPlatform] = useState(null);
-  const [budget, setBudget] = useState(null);
-  const [genres, setGenres] = useState([]);
+const LAST_STEP = 3;
+const INTERACTIVE = new Set(['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A']);
 
-  const canNext = () => {
+export default function App() {
+  const { t, profile } = useSettings();
+  // Aktywny widok: kreator gier lub promocje.
+  const [view, setView] = useLocalStorage('gamepicker:view', 'finder');
+  // Postęp kreatora zapisywany w localStorage — odświeżenie nie gubi wyborów.
+  const [step, setStep] = useLocalStorage('gamepicker:step', 0);
+  const [platform, setPlatform] = useLocalStorage('gamepicker:platform', null);
+  const [budget, setBudget] = useLocalStorage('gamepicker:budget', null);
+  const [genres, setGenres] = useLocalStorage('gamepicker:genres', []);
+  const [specs, setSpecs] = useLocalStorage('gamepicker:specs', null); // sprzęt PC (opcjonalnie)
+
+  const canNext = useCallback(() => {
     if (step === 0) return !!platform;
     if (step === 1) return budget !== null;
     return true;
-  };
+  }, [step, platform, budget]);
 
-  const next = () => setStep((s) => Math.min(s + 1, 3));
-  const back = () => setStep((s) => Math.max(s - 1, 0));
+  const next = useCallback(() => setStep((s) => Math.min(s + 1, LAST_STEP)), [setStep]);
+  const back = useCallback(() => setStep((s) => Math.max(s - 1, 0)), [setStep]);
+  const goToStep = useCallback((i) => setStep(i), [setStep]);
 
-  const toggleGenre = (id) =>
-    setGenres((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
+  const toggleGenre = useCallback(
+    (id) => setGenres((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id])),
+    [setGenres]
+  );
+  const selectAllGenres = useCallback(() => setGenres(ALL_GENRES.map((g) => g.id)), [setGenres]);
+  const clearGenres = useCallback(() => setGenres([]), [setGenres]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setPlatform(null);
     setBudget(null);
     setGenres([]);
     setStep(0);
-  };
+  }, [setPlatform, setBudget, setGenres, setStep]);
+
+  // Nawigacja klawiaturą (Enter = dalej), gdy fokus nie jest na elemencie interaktywnym.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Enter') return;
+      if (INTERACTIVE.has(document.activeElement?.tagName)) return;
+      if (step < LAST_STEP && canNext()) next();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [step, canNext, next]);
+
+  const nextDisabled = !canNext();
 
   return (
     <div
@@ -44,39 +78,21 @@ export default function App() {
       }}
     >
       {/* Ambient blobs */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: '25%',
-          width: 400,
-          height: 400,
-          borderRadius: '50%',
-          background: '#6c63ff0d',
-          filter: 'blur(80px)',
-          transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          right: '25%',
-          width: 320,
-          height: 320,
-          borderRadius: '50%',
-          background: '#a855f70d',
-          filter: 'blur(80px)',
-          transform: 'translateY(50%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      <div style={blob({ top: 0, left: '25%', transform: 'translateY(-50%)' }, 400, '#6c63ff0d')} />
+      <div style={blob({ bottom: 0, right: '25%', transform: 'translateY(50%)' }, 320, '#a855f70d')} />
 
       {/* Header */}
-      <header style={{ textAlign: 'center', paddingTop: 48, paddingBottom: 8, paddingLeft: 24, paddingRight: 24, position: 'relative', zIndex: 10 }}>
+      <header
+        style={{
+          textAlign: 'center',
+          paddingTop: 'clamp(32px, 6vw, 48px)',
+          paddingBottom: 8,
+          paddingLeft: 24,
+          paddingRight: 24,
+          position: 'relative',
+          zIndex: 10,
+        }}
+      >
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
             <div
@@ -88,7 +104,7 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 22,
-                background: 'linear-gradient(135deg,#6c63ff,#a855f7)',
+                background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
               }}
             >
               🎮
@@ -107,8 +123,60 @@ export default function App() {
               GamePicker
             </span>
           </div>
-          <p style={{ color: '#555', fontSize: 14, margin: 0 }}>Znajdź idealną grę dla siebie w kilka sekund</p>
+          <p style={{ color: '#8a8aa0', fontSize: 14, margin: 0 }}>{t('app.subtitle')}</p>
         </motion.div>
+
+        {/* Nawigacja + profil + powiadomienia */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
+          {[
+            { id: 'finder', label: `🔎 ${t('nav.finder')}` },
+            { id: 'deals', label: `🔥 ${t('nav.deals')}` },
+            { id: 'premiery', label: `🚀 ${t('nav.premieres')}` },
+            { id: 'my', label: `⭐ ${t('nav.my')}` },
+            { id: 'settings', label: `⚙️ ${t('nav.settings')}` },
+          ].map((tab) => {
+            const active = view === tab.id;
+            return (
+              <motion.button
+                key={tab.id}
+                onClick={() => setView(tab.id)}
+                aria-pressed={active}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 999,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  color: active ? '#fff' : '#9a9ab0',
+                  background: active ? 'linear-gradient(135deg,var(--accent),var(--accent2))' : '#ffffff0a',
+                  border: active ? '1px solid transparent' : '1px solid #ffffff14',
+                  boxShadow: active ? '0 0 20px var(--accent)' : 'none',
+                }}
+              >
+                {tab.label}
+              </motion.button>
+            );
+          })}
+
+          <NotificationsBell />
+
+          <button
+            onClick={() => setView('my')}
+            aria-label={t('settings.profile')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 999,
+              background: '#ffffff0a', border: '1px solid #ffffff14', color: '#ddd', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
+            }}
+          >
+            <span style={{ width: 28, height: 28, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, background: 'linear-gradient(135deg,var(--accent),var(--accent2))' }}>
+              {profile.avatar}
+            </span>
+            {profile.nick || 'Gość'}
+          </button>
+        </div>
       </header>
 
       {/* Main card */}
@@ -118,39 +186,71 @@ export default function App() {
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'center',
-          padding: '40px 16px',
+          padding: 'clamp(24px, 4vw, 40px) 16px',
           position: 'relative',
           zIndex: 10,
         }}
       >
+        <AnimatePresence mode="wait">
+        {view !== 'finder' ? (
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35 }}
+            style={{
+              width: '100%',
+              maxWidth: 1100,
+              borderRadius: 28,
+              padding: 'clamp(20px, 5vw, 48px) clamp(16px, 4vw, 40px)',
+              background: '#0a0a18ee',
+              border: '1px solid #ffffff0d',
+              backdropFilter: 'blur(20px)',
+              boxShadow: '0 32px 80px #00000088, inset 0 1px 0 #ffffff08',
+            }}
+          >
+            {view === 'deals' ? <DealsView /> : view === 'premiery' ? <PremieresView /> : view === 'my' ? <MyView /> : <SettingsView />}
+          </motion.div>
+        ) : (
         <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          key="wizard"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -16 }}
+          transition={{ duration: 0.35 }}
           style={{
             width: '100%',
             maxWidth: 900,
             borderRadius: 28,
-            padding: '48px 40px',
+            padding: 'clamp(24px, 5vw, 48px) clamp(20px, 4vw, 40px)',
             background: '#0a0a18ee',
             border: '1px solid #ffffff0d',
             backdropFilter: 'blur(20px)',
             boxShadow: '0 32px 80px #00000088, inset 0 1px 0 #ffffff08',
           }}
         >
-          <StepIndicator current={step} />
+          <StepIndicator current={step} onStepClick={goToStep} />
 
           <AnimatePresence mode="wait">
-            {step === 0 && <PlatformStep key="platform" selected={platform} onSelect={setPlatform} />}
+            {step === 0 && <PlatformStep key="platform" selected={platform} onSelect={setPlatform} specs={specs} onSpecs={setSpecs} />}
             {step === 1 && <BudgetStep key="budget" selected={budget} onSelect={setBudget} />}
-            {step === 2 && <GenreStep key="genre" selected={genres} onToggle={toggleGenre} />}
+            {step === 2 && (
+              <GenreStep
+                key="genre"
+                selected={genres}
+                onToggle={toggleGenre}
+                onSelectAll={selectAllGenres}
+                onClear={clearGenres}
+              />
+            )}
             {step === 3 && (
-              <ResultsStep key="results" platform={platform} budget={budget} genres={genres} onReset={reset} />
+              <ResultsStep key="results" platform={platform} budget={budget} genres={genres} specs={specs} onReset={reset} />
             )}
           </AnimatePresence>
 
           {/* Navigation */}
-          {step < 3 && (
+          {step < LAST_STEP && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -166,6 +266,7 @@ export default function App() {
               <button
                 onClick={back}
                 disabled={step === 0}
+                aria-label="Wróć do poprzedniego kroku"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -185,13 +286,15 @@ export default function App() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
-                Wstecz
+                {t('wizard.back')}
               </button>
 
               <motion.button
-                whileHover={canNext() ? { scale: 1.04 } : {}}
-                whileTap={canNext() ? { scale: 0.97 } : {}}
-                onClick={canNext() ? next : undefined}
+                whileHover={nextDisabled ? {} : { scale: 1.04 }}
+                whileTap={nextDisabled ? {} : { scale: 0.97 }}
+                onClick={nextDisabled ? undefined : next}
+                disabled={nextDisabled}
+                aria-label={step === 2 ? 'Pokaż dopasowane gry' : 'Przejdź dalej'}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -200,16 +303,16 @@ export default function App() {
                   borderRadius: 999,
                   fontSize: 14,
                   fontWeight: 600,
-                  background: canNext() ? 'linear-gradient(135deg,#6c63ff,#a855f7)' : '#222',
+                  background: nextDisabled ? '#222' : 'linear-gradient(135deg,var(--accent),var(--accent2))',
                   color: '#fff',
                   border: 'none',
-                  cursor: canNext() ? 'pointer' : 'not-allowed',
-                  opacity: canNext() ? 1 : 0.3,
-                  boxShadow: canNext() ? '0 0 24px #6c63ff55' : 'none',
+                  cursor: nextDisabled ? 'not-allowed' : 'pointer',
+                  opacity: nextDisabled ? 0.3 : 1,
+                  boxShadow: nextDisabled ? 'none' : '0 0 24px #6c63ff55',
                   fontFamily: 'inherit',
                 }}
               >
-                {step === 2 ? 'Pokaż gry 🎮' : 'Dalej'}
+                {step === 2 ? t('wizard.show') : t('wizard.next')}
                 {step !== 2 && (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 18l6-6-6-6" />
@@ -219,11 +322,28 @@ export default function App() {
             </motion.div>
           )}
         </motion.div>
+        )}
+        </AnimatePresence>
       </main>
 
-      <footer style={{ textAlign: 'center', paddingBottom: 24, color: '#333', fontSize: 12, position: 'relative', zIndex: 10 }}>
+      <footer style={{ textAlign: 'center', paddingBottom: 24, color: '#444', fontSize: 12, position: 'relative', zIndex: 10 }}>
         GamePicker • Znajdź swoją idealną grę
       </footer>
     </div>
   );
+}
+
+// Pomocnik dla dekoracyjnych, rozmytych kół w tle.
+function blob(pos, size, color) {
+  return {
+    position: 'fixed',
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    background: color,
+    filter: 'blur(80px)',
+    pointerEvents: 'none',
+    zIndex: 0,
+    ...pos,
+  };
 }
