@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { games, SORT_OPTIONS, PLATFORM_META } from '../data/games';
 import { useFavorites } from '../hooks/useFavorites';
 import { gamesWord, genresWord } from '../utils/format';
+import { compatFor, hasSpecs } from '../utils/compat';
 import GameCard from './GameCard';
 import GameDetailModal from './GameDetailModal';
 
@@ -15,16 +16,18 @@ const comparators = {
   name: (a, b) => a.title.localeCompare(b.title, 'pl'),
 };
 
-export default function ResultsStep({ platform, budget, genres, onReset }) {
+export default function ResultsStep({ platform, budget, genres, specs, onReset }) {
   const { favoriteSet, isFavorite, toggleFavorite } = useFavorites();
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('rating');
   const [onlyFree, setOnlyFree] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [onlyPlayable, setOnlyPlayable] = useState(false);
+  const specsOn = hasSpecs(specs) && platform === 'pc';
   const [detail, setDetail] = useState(null);
   const [limit, setLimit] = useState(60); // ile kart pokazać (płynność przy setkach gier)
   // Reset porcji przy zmianie filtrów (wzorzec „dostosuj stan w trakcie renderu", bez useEffect)
-  const filterKey = `${platform}|${budget}|${genres.join(',')}|${onlyFree}|${onlyFavorites}|${query}|${sort}`;
+  const filterKey = `${platform}|${budget}|${genres.join(',')}|${onlyFree}|${onlyFavorites}|${onlyPlayable}|${query}|${sort}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -53,6 +56,10 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
       if (genres.length > 0 && !g.genre.some((x) => genres.includes(x))) return false;
       if (onlyFree && g.price !== 0) return false;
       if (onlyFavorites && !favoriteSet.has(g.id)) return false;
+      if (onlyPlayable && specsOn) {
+        const c = compatFor(g, specs);
+        if (c && c.level === 'no') return false;
+      }
       if (
         q &&
         !g.title.toLowerCase().includes(q) &&
@@ -62,7 +69,7 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
       return true;
     });
     return list.sort(comparators[sort] || comparators.rating);
-  }, [platform, budget, genres, onlyFree, onlyFavorites, query, sort, favoriteSet]);
+  }, [platform, budget, genres, onlyFree, onlyFavorites, onlyPlayable, specs, specsOn, query, sort, favoriteSet]);
 
   const visible = results.slice(0, limit);
 
@@ -161,6 +168,18 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
         <ToggleChip active={onlyFavorites} onClick={() => setOnlyFavorites((v) => !v)}>
           ❤️ Ulubione
         </ToggleChip>
+        {specsOn && (
+          <ToggleChip active={onlyPlayable} onClick={() => setOnlyPlayable((v) => !v)}>
+            💻 Co uruchomię
+          </ToggleChip>
+        )}
+        <button
+          onClick={() => results.length && setDetail(results[Math.floor(Math.random() * results.length)])}
+          className="px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap"
+          style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent2))', color: '#fff', border: '1px solid transparent', cursor: 'pointer' }}
+        >
+          🎲 Zaskocz mnie
+        </button>
       </div>
 
       {results.length === 0 ? (
@@ -193,6 +212,7 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
                 isFavorite={isFavorite(game.id)}
                 onToggleFavorite={toggleFavorite}
                 onOpen={setDetail}
+                specs={specs}
               />
             ))}
           </div>
@@ -232,6 +252,7 @@ export default function ResultsStep({ platform, budget, genres, onReset }) {
           isFavorite={isFavorite(detail.id)}
           onToggleFavorite={toggleFavorite}
           onClose={() => setDetail(null)}
+          specs={specs}
         />
       )}
     </motion.div>

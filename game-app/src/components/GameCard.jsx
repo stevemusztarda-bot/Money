@@ -1,8 +1,9 @@
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PLATFORM_META, PLAYER_META } from '../data/games';
 import { formatPrice } from '../utils/format';
 import { buildStores, imageUrl } from '../utils/stores';
+import { compatFor } from '../utils/compat';
 
 const starColor = (r) => (r >= 9.0 ? '#fbbf24' : r >= 8.0 ? '#f59e0b' : r >= 6.5 ? '#d97706' : '#9ca3af');
 
@@ -16,13 +17,14 @@ function reviewColor(label = '') {
   return '#a78bfa';
 }
 
-function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
+function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen, specs }) {
   const isFree = game.price === 0;
   const onSale = game.discount > 0 && game.priceOld;
   const [imgFailed, setImgFailed] = useState(false);
   const review = game.review;
   const stores = buildStores(game);
   const imgSrc = imageUrl(game);
+  const compat = useMemo(() => compatFor(game, specs), [game, specs]);
 
   return (
     <motion.div
@@ -101,6 +103,16 @@ function GameCard({ game, index, isFavorite, onToggleFavorite, onOpen }) {
           <h3 className="font-bold text-base text-white leading-tight">{game.title}</h3>
           {game.year && <span className="shrink-0 text-xs font-medium text-gray-500 mt-0.5">{game.year}</span>}
         </div>
+
+        {/* Dopasowanie do Twojego sprzętu */}
+        {compat && (
+          <div
+            className="inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg text-xs font-bold self-start"
+            style={{ background: `${compat.color}22`, color: compat.color, border: `1px solid ${compat.color}44` }}
+          >
+            {compat.icon} {compat.label}
+          </div>
+        )}
 
         {/* Opinia / recenzja */}
         {review?.label && (

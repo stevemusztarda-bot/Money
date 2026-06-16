@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { PLATFORM_META, PLAYER_META, genres as ALL_GENRES } from '../data/games';
 import { formatPrice } from '../utils/format';
 import { buildStores, imageUrl } from '../utils/stores';
+import { compatFor } from '../utils/compat';
 import { useReviews } from '../hooks/useReviews';
 import { useT } from '../settings-context';
 
@@ -17,7 +18,7 @@ const reviewColor = (label = '') => {
 };
 const genreLabel = (id) => ALL_GENRES.find((g) => g.id === id)?.label || id;
 
-export default function GameDetailModal({ game, isFavorite, onToggleFavorite, onClose }) {
+export default function GameDetailModal({ game, isFavorite, onToggleFavorite, onClose, specs }) {
   const [imgFailed, setImgFailed] = useState(false);
   const t = useT();
   const { getReview, saveReview } = useReviews();
@@ -49,6 +50,8 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
   const onSale = game.discount > 0 && game.priceOld;
   const stores = buildStores(game);
   const imgSrc = imageUrl(game);
+  const compat = compatFor(game, specs);
+  const showReq = game.platform.includes('pc') && (game.req || game.minRam || compat);
 
   // Portal do document.body — modal nie może być wewnątrz karty z backdrop-filter,
   // bo wtedy position:fixed liczy się względem karty, a nie ekranu.
@@ -154,6 +157,24 @@ export default function GameDetailModal({ game, isFavorite, onToggleFavorite, on
                 </span>
               ))}
             </div>
+
+            {/* Wymagania PC + dopasowanie do sprzętu */}
+            {showReq && (
+              <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: '#ffffff06', border: '1px solid #ffffff12' }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#777', marginBottom: 8 }}>💻 Wymagania (minimalne)</div>
+                {compat && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: '5px 10px', borderRadius: 8, fontWeight: 700, fontSize: 13, background: `${compat.color}22`, color: compat.color, border: `1px solid ${compat.color}44` }}>
+                    {compat.icon} {compat.label}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#bbb' }}>
+                  {game.req?.cpu && <div><span style={{ color: '#777' }}>Procesor:</span> {game.req.cpu}</div>}
+                  {game.req?.gpu && <div><span style={{ color: '#777' }}>Grafika:</span> {game.req.gpu}</div>}
+                  {game.minRam && <div><span style={{ color: '#777' }}>RAM:</span> {game.minRam} GB</div>}
+                  {!game.req && !game.minRam && <div style={{ color: '#777' }}>Brak szczegółowych wymagań — poziom: {'★'.repeat(game.reqTier || 0)}</div>}
+                </div>
+              </div>
+            )}
 
             {/* Price */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 20 }}>

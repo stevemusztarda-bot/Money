@@ -237,6 +237,37 @@ async function fetchFeatured() {
   return { upcoming, featuredDeals, featuredPremiere };
 }
 
+// Parsowanie minimalnych wymagań PC ze Steam (RAM/CPU/GPU)
+function parseReq(html) {
+  if (!html) return {};
+  const txt = String(html).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim();
+  const ramM = txt.match(/(\d+)\s*GB\s*RAM/i) || txt.match(/(?:Pami|Memory)[^0-9]{0,30}(\d+)\s*GB/i);
+  // Wymagamy dwukropka po etykiecie, by nie złapać np. „64-bitowego procesora".
+  const cpuM = txt.match(/(?:Procesor|Processor)\s*:\s*(.+?)\s*(?:Pami|Memory|Karta|Graphics|DirectX|Miejsce|Storage|Sound|D[źz]wi)/i);
+  const gpuM = txt.match(/(?:Karta graficzna|Graphics)\s*:\s*(.+?)\s*(?:DirectX|Miejsce|Storage|Sound|D[źz]wi|Dodatkowe|Pami|Memory)/i);
+  const bad = (s) => !s || /systemu operacyjnego|operating system|64-bit/i.test(s);
+  const trim = (s) => (bad(s) ? null : s.trim().replace(/\s+/g, ' ').slice(0, 55));
+  return { ram: ramM ? Number(ramM[1]) : null, cpu: trim(cpuM?.[1]), gpu: trim(gpuM?.[1]) };
+}
+
+// Poziom wymagań sprzętowych 1–5 (z roku, gatunku i min. RAM)
+const HEAVY_GENRES = ['fps', 'action', 'rpg', 'adventure', 'horror', 'racing', 'survival', 'battle-royale', 'mmo'];
+const LIGHT_GENRES = ['puzzle', 'casual', 'card', 'platformer', 'indie', 'roguelike', 'strategy', 'simulation'];
+function reqTier(game, minRam) {
+  const y = game.year || 2015;
+  let tier = y >= 2023 ? 5 : y >= 2020 ? 4 : y >= 2016 ? 3 : y >= 2012 ? 2 : 1;
+  const heavy = (game.genre || []).some((x) => HEAVY_GENRES.includes(x));
+  const light = (game.genre || []).some((x) => LIGHT_GENRES.includes(x));
+  if (light && !heavy) tier -= 1;
+  if (minRam != null) {
+    if (minRam >= 16) tier = Math.max(tier, 5);
+    else if (minRam >= 12) tier = Math.max(tier, 4);
+    else if (minRam >= 8) tier = Math.max(tier, 3);
+    else if (minRam <= 4) tier = Math.min(tier, 2);
+  }
+  return Math.max(1, Math.min(5, tier));
+}
+
 async function enrich(entry, spyEntry) {
   const g = { ...entry };
   if (entry.steam) {
@@ -271,6 +302,10 @@ async function enrich(entry, spyEntry) {
       const rv = deriveReview(data, spyEntry, entry);
       g.review = rv;
       if (rv.score != null) g.rating = Math.round((rv.score / 10) * 10) / 10;
+      // Wymagania sprzętowe (min.) — dla dopasowania „czy mój PC to uciągnie"
+      const rq = parseReq(data.pc_requirements?.minimum);
+      g.minRam = rq.ram ?? null;
+      g.req = rq.cpu || rq.gpu ? { cpu: rq.cpu, gpu: rq.gpu, ram: rq.ram ?? null } : null;
     }
   } else if (!entry.image) {
     // Miniaturka dla wpisów spoza Steam (Nintendo: stały URL; mobile: App Store)
@@ -294,6 +329,10 @@ async function enrich(entry, spyEntry) {
   if (g.discount == null) g.discount = 0;
   if (g.priceOld == null) g.priceOld = null;
   if (g.comingSoon == null) g.comingSoon = false;
+  if (g.minRam === undefined) g.minRam = null;
+  if (g.req === undefined) g.req = null;
+  // Poziom wymagań liczymy tylko dla gier na PC.
+  g.reqTier = g.platform.includes('pc') ? reqTier(g, g.minRam) : null;
   return g;
 }
 
@@ -572,8 +611,9 @@ async function main() {
       steam: appid, title: s.name, platform: ['pc'], genre: [...(genreMap.get(appid) || new Set(['indie']))].slice(0, 4),
       players: ['single'], price: p.price ?? null, priceOld: p.priceOld ?? null, discount: p.discount ?? 0,
       rating: rv.score != null ? Math.round((rv.score / 10) * 10) / 10 : null, year: null, comingSoon: false,
-      image: '', description: '', review: rv, cs: null, appStoreUrl: null,
+      image: '', description: '', review: rv, cs: null, appStoreUrl: null, minRam: null, req: null,
     };
+    game.reqTier = reqTier(game, null);
     game.tags = buildTags(game);
     out.push(game);
   }
@@ -655,6 +695,9 @@ function serialize(arr) {
       steam: g.steam || null,
       cs: g.cs || null,
       appStoreUrl: g.appStoreUrl || null,
+      minRam: g.minRam ?? null,
+      reqTier: g.reqTier ?? null,
+      req: g.req ?? null,
     };
     return '  ' + JSON.stringify(o);
   });

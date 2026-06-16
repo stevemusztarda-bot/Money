@@ -27,6 +27,7 @@ export default function App() {
   const [platform, setPlatform] = useLocalStorage('gamepicker:platform', null);
   const [budget, setBudget] = useLocalStorage('gamepicker:budget', null);
   const [genres, setGenres] = useLocalStorage('gamepicker:genres', []);
+  const [specs, setSpecs] = useLocalStorage('gamepicker:specs', null); // sprzęt PC (opcjonalnie)
 
   const canNext = useCallback(() => {
     if (step === 0) return !!platform;
@@ -232,7 +233,7 @@ export default function App() {
           <StepIndicator current={step} onStepClick={goToStep} />
 
           <AnimatePresence mode="wait">
-            {step === 0 && <PlatformStep key="platform" selected={platform} onSelect={setPlatform} />}
+            {step === 0 && <PlatformStep key="platform" selected={platform} onSelect={setPlatform} specs={specs} onSpecs={setSpecs} />}
             {step === 1 && <BudgetStep key="budget" selected={budget} onSelect={setBudget} />}
             {step === 2 && (
               <GenreStep
@@ -244,7 +245,7 @@ export default function App() {
               />
             )}
             {step === 3 && (
-              <ResultsStep key="results" platform={platform} budget={budget} genres={genres} onReset={reset} />
+              <ResultsStep key="results" platform={platform} budget={budget} genres={genres} specs={specs} onReset={reset} />
             )}
           </AnimatePresence>
 
